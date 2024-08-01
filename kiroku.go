@@ -10,52 +10,33 @@ import (
 	"time"
 
 	"github.com/diamondburned/arikawa/v3/discord"
-	"github.com/diamondburned/arikawa/v3/state"
+	astate "github.com/diamondburned/arikawa/v3/state"
 )
 
-var typeNames = map[discord.MessageType]string{
-	discord.DefaultMessage:                             "DefaultMessage",
-	discord.RecipientAddMessage:                        "RecipientAddMessage",
-	discord.RecipientRemoveMessage:                     "RecipientRemoveMessage",
-	discord.CallMessage:                                "CallMessage",
-	discord.ChannelNameChangeMessage:                   "ChannelNameChangeMessage",
-	discord.ChannelIconChangeMessage:                   "ChannelIconChangeMessage",
-	discord.ChannelPinnedMessage:                       "ChannelPinnedMessage",
-	discord.GuildMemberJoinMessage:                     "GuildMemberJoinMessage",
-	discord.NitroBoostMessage:                          "NitroBoostMessage",
-	discord.NitroTier1Message:                          "NitroTier1Message",
-	discord.NitroTier2Message:                          "NitroTier2Message",
-	discord.NitroTier3Message:                          "NitroTier3Message",
-	discord.ChannelFollowAddMessage:                    "ChannelFollowAddMessage",
-	discord.GuildDiscoveryDisqualifiedMessage:          "GuildDiscoveryDisqualifiedMessage",
-	discord.GuildDiscoveryRequalifiedMessage:           "GuildDiscoveryRequalifiedMessage",
-	discord.GuildDiscoveryGracePeriodInitialWarning:    "GuildDiscoveryGracePeriodInitialWarning",
-	discord.GuildDiscoveryGracePeriodFinalWarning:      "GuildDiscoveryGracePeriodFinalWarning",
-	discord.ThreadCreatedMessage:                       "ThreadCreatedMessage",
-	discord.InlinedReplyMessage:                        "InlinedReplyMessage",
-	discord.ChatInputCommandMessage:                    "ChatInputCommandMessage",
-	discord.ThreadStarterMessage:                       "ThreadStarterMessage",
-	discord.GuildInviteReminderMessage:                 "GuildInviteReminderMessage",
-	discord.ContextMenuCommand:                         "ContextMenuCommand",
-	discord.AutoModerationActionMessage:                "AutoModerationActionMessage",
-	discord.RoleSubscriptionPurchaseMessage:            "RoleSubscriptionPurchaseMessage",
-	discord.InteractionPremiumUpsellMessage:            "InteractionPremiumUpsellMessage",
-	discord.StageStartMessage:                          "StageStartMessage",
-	discord.StageEndMessage:                            "StageEndMessage",
-	discord.StageSpeakerMessage:                        "StageSpeakerMessage",
-	discord.StageTopicMessage:                          "StageTopicMessage",
-	discord.GuildApplicationPremiumSubscriptionMessage: "GuildApplicationPremiumSubscriptionMessage",
+var (
+	token string
+	cid int64
+	limit uint
+)
+
+type state struct {
+	*astate.State
+}
+
+func init() {
+	flag.StringVar(&token, "token", "", "Discord Token")
+	flag.Int64Var(&cid, "channel", 0, "Channel ID")
+	flag.UintVar(&limit, "limit", 0, "messages to fetch (0 for unlimited)")
 }
 
 func main() {
-	token := flag.String("token", "", "Discord Token")
-	cid := flag.Int64("channel", 0, "Channel ID")
-	limit := flag.Uint("limit", 0, "messages to fetch (0 for unlimited)")
 	flag.Parse()
 
-	s := state.New(*token)
+	s := state{
+		State: astate.New(token),
+	}
 
-	if *cid == 0 {
+	if cid == 0 {
 		fmt.Println("channel id must be given")
 		os.Exit(1)
 	}
@@ -63,15 +44,22 @@ func main() {
 	if err := s.Open(context.TODO()); err != nil {
 		log.Fatal(err)
 	}
+	defer s.Close()
 
-	c, err := s.Channel(discord.ChannelID(*cid))
-	if err != nil {
+	if err := s.printChannel(discord.ChannelID(cid)); err != nil {
 		log.Fatal(err)
 	}
+}
 
-	ms, err := s.MessagesBefore(c.ID, discord.MessageID(0), *limit)
+func (s *state) printChannel(cid discord.ChannelID) error {
+	c, err := s.Channel(cid)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+
+	ms, err := s.MessagesBefore(c.ID, discord.MessageID(0), limit)
+	if err != nil {
+		return err
 	}
 
 	sort.Slice(ms, func(i, j int) bool {
@@ -82,8 +70,9 @@ func main() {
 		printMessage(&m)
 	}
 
-	s.Close()
+	return nil
 }
+
 
 func printMessage(m *discord.Message) {
 	fmt.Printf("[%s] %s %s (%s)",
