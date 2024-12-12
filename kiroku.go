@@ -99,7 +99,11 @@ func printMessage(m *discord.Message) {
 	case discord.ChannelIconChangeMessage:
 		fmt.Printf(" [changed group icon]")
 	case discord.ChannelPinnedMessage:
-		fmt.Printf(" [pinned message %s]", m.ReferencedMessage.ID)
+		if m.ReferencedMessage != nil {
+			fmt.Printf(" [pinned message %s]", m.ReferencedMessage.ID)
+		} else {
+			fmt.Printf(" [pinned unknown message]")
+		}
 	case discord.GuildMemberJoinMessage:
 		fmt.Printf(" [joined guild]")
 	case discord.DefaultMessage,
@@ -107,6 +111,8 @@ func printMessage(m *discord.Message) {
 		discord.ChatInputCommandMessage:
 		if m.ReferencedMessage != nil {
 			fmt.Printf(" [replying to message %s]", m.ReferencedMessage.ID)
+		} else {
+			fmt.Printf(" [replying to unknown message]")
 		}
 
 		if m.Content != "" {
